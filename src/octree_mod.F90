@@ -14,76 +14,76 @@ module octree_mod
   type config_type
     integer max_num_point ! Maximum point number contained in leaf node.
     integer max_depth     ! Maximum level of branch and leaf nodes
-    real(8) bbox(2, 3)
+    real(8) bbox(2, 3)    ! The 2 points in a box one being the anchor point bottom left then 2nd being its adjacent corner
   end type config_type
 
   ! Points should be indexed by their id.
   type point_type
-    integer id
-    real(8) x(3)
+    integer id  ! (Assuming) this is to determine which order the numbers are in
+    real(8) x(3)  !point is in form (x, y, z)
   end type point_type
 
   ! There are two kinds of nodes:
   !   1. Branch node with children;
   !   2. Leaf node without child but containing points.
   type node_type
-    integer depth
-    real(8) bbox(2, 3)
-    integer num_point
-    integer, allocatable :: point_ids(:)
-    type(node_type), pointer :: parent
-    type(node_type), pointer :: children(:)
+    integer depth ! depth tells how far we are into the tree 
+    real(8) bbox(2, 3) ! Same as before 2 coordinates of box in form (x,y,z)
+    integer num_point ! used to determine the number of points (inside a box? Not quite sure)
+    integer, allocatable :: point_ids(:) 
+    type(node_type), pointer :: parent  ! Pointer for parent node
+    type(node_type), pointer :: children(:) ! points to the 8 children after being created
   end type node_type
 
   type tree_type
-    type(point_type), pointer :: points(:)
-    type(node_type), pointer :: root_node
+    type(point_type), pointer :: points(:)  ! A pointer that points to the points within that cube in the octree
+    type(node_type), pointer :: root_node   ! A pointer that points to the root that we are on
   end type tree_type
 
-  type(config_type) config
-  type(tree_type) tree
+  type(config_type) config ! Type of configuration to set max num of points and depth  
+  type(tree_type) tree     ! Type of configuration to set this tree point and node types for new Children or branches
 
 contains
 
-  subroutine octree_init(max_num_point, max_depth, bbox)
+  subroutine octree_init(max_num_point, max_depth, bbox)  ! Subroutine so that we create the first octree box?
 
-    integer, intent(in), optional :: max_num_point
+    integer, intent(in), optional :: max_num_point 
     integer, intent(in), optional :: max_depth
     real(8), intent(in), optional :: bbox(2, 3)
 
-    config%max_num_point = merge(max_num_point, 3, present(max_num_point))
-    config%max_depth = merge(max_depth, 10, present(max_depth))
-    config%bbox = merge(bbox, reshape([0.0d0, 1.0d0, 0.0d0, 1.0d0, 0.0d0, 1.0d0], [2, 3]), present(bbox))
+    config%max_num_point = merge(max_num_point, 3, present(max_num_point)) ! sets the max number of points if given in the argument otherwise it is set to 3
+    config%max_depth = merge(max_depth, 10, present(max_depth)) ! sets the max depth of our octree if given otherwise it is set to 10
+    config%bbox = merge(bbox, reshape([0.0d0, 1.0d0, 0.0d0, 1.0d0, 0.0d0, 1.0d0], [2, 3]), present(bbox)) ! creates the first octree box if given the 2 corners with bbox otherwise does a generic box of 0x1 in all 3 dimensions
 
-    if (.not. associated(tree%root_node)) allocate(tree%root_node)
-    call reset_node(tree%root_node)
-    tree%root_node%depth = 1
-    tree%root_node%bbox = config%bbox
+    if (.not. associated(tree%root_node)) allocate(tree%root_node) ! determines if the tree%root_node has a pointer if false it allocates it
+    call reset_node(tree%root_node) ! See Subroutine for details
+    tree%root_node%depth = 1 ! Set the root node depth to 1 since we are creating the first tree
+    tree%root_node%bbox = config%bbox ! Sets the first node with the boundary box value to determine size of box.
 
   end subroutine octree_init
 
   subroutine octree_final()
 
-    call clean_node(tree%root_node)
-    deallocate(tree%root_node)
+    call clean_node(tree%root_node) ! See clean_node for details
+    deallocate(tree%root_node) ! deallocates tree root node such that we can tell our refinement is over.
 
   end subroutine octree_final
 
-  recursive subroutine octree_build(points, node_)
+  recursive subroutine octree_build(points, node_) ! Recursive subroutine that builds the octree for each refinement
 
-    type(point_type), intent(in), target :: points(:)
-    type(node_type), intent(inout), target, optional :: node_
+    type(point_type), intent(in), target :: points(:) ! This argument is needed when calling the octree_build these are the points in the octree mesh
+    type(node_type), intent(inout), target, optional :: node_ ! optional argument to determine if we are in a refine octree cell.
 
-    type(node_type), pointer :: node
-    integer i, j
-    integer num_contained_point
-    type(point_type), allocatable :: contained_points(:)
+    type(node_type), pointer :: node ! create an empty node pointer
+    integer i, j !dummy integers for the recursive subroutine
+    integer num_contained_point ! value for number of points contained in our bbox may be bigger than max points
+    type(point_type), allocatable :: contained_points(:) !array of the points that was contained in out octree.
 
-    if (present(node_)) then
+    if (present(node_)) then  ! Sets the empty node pointer to point to the argument one in subroutine
       node => node_
     else
-      tree%points => points
-      node => tree%root_node
+      tree%points => points !if the optional node_ is not in the argument, we point the tree points to our argument points  
+      node => tree%root_node  ! then the node pointer points to our tree root nodes. 
     end if
 
     ! Leaf node is approached.
