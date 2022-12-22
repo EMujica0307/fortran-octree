@@ -30,7 +30,7 @@ module octree_mod
     integer depth ! depth tells how far we are into the tree 
     real(8) bbox(2, 3) ! Same as before 2 coordinates of box in form (x,y,z)
     integer num_point ! used to determine the number of points (inside a box? Not quite sure)
-    integer, allocatable :: point_ids(:) 
+    integer, allocatable :: point_ids(:) ! id for the point we are working with
     type(node_type), pointer :: parent  ! Pointer for parent node
     type(node_type), pointer :: children(:) ! points to the 8 children after being created
   end type node_type
@@ -87,30 +87,30 @@ contains
     end if
 
     ! Leaf node is approached.
-    if (node%depth >= config%max_depth .or. size(points) <= config%max_num_point) then
-      if (size(points) > size(node%point_ids)) then
+    if (node%depth >= config%max_depth .or. size(points) <= config%max_num_point) then  ! Checks depth node to max depth and size of points, if one is true goes to next if statement
+      if (size(points) > size(node%point_ids)) then ! if num of points is more than the number of ids we de allocate the ids and make new array with correct size
         deallocate(node%point_ids)
         allocate(node%point_ids(size(points)))
       end if
-      j = 1
-      do i = 1, size(points)
-        if (points(i)%x(1) < node%bbox(1, 1) .or. points(i)%x(1) > node%bbox(2, 1) .or. &
-            points(i)%x(2) < node%bbox(1, 2) .or. points(i)%x(2) > node%bbox(2, 2) .or. &
+      j = 1 ! first if is false for both conditions goes on to this do statement
+      do i = 1, size(points) 
+        if (points(i)%x(1) < node%bbox(1, 1) .or. points(i)%x(1) > node%bbox(2, 1) .or. & ! checks if the point is inside our bbox in all 3 dimensions
+            points(i)%x(2) < node%bbox(1, 2) .or. points(i)%x(2) > node%bbox(2, 2) .or. & ! if the point is outside of box from one side then we cycle the i integer
             points(i)%x(3) < node%bbox(1, 3) .or. points(i)%x(3) > node%bbox(2, 3)) cycle
-        node%point_ids(j) = points(i)%id
+        node%point_ids(j) = points(i)%id  ! once we find a point inside our box then we set the node id with this points id so we can see what points we retain.
         j = j + 1
       end do
-      node%num_point = j - 1
+      node%num_point = j - 1 ! sets the total number of points contained in our node.
       return
     end if
 
     ! Copy contained points into a new array.
-    num_contained_point = 0
+    num_contained_point = 0 ! sets a dummy variable to 0 for number of points in our octree
     do i = 1, size(points)
-      if (points(i)%x(1) < node%bbox(1, 1) .or. points(i)%x(1) > node%bbox(2, 1) .or. &
+      if (points(i)%x(1) < node%bbox(1, 1) .or. points(i)%x(1) > node%bbox(2, 1) .or. & ! checks again? 
           points(i)%x(2) < node%bbox(1, 2) .or. points(i)%x(2) > node%bbox(2, 2) .or. &
           points(i)%x(3) < node%bbox(1, 3) .or. points(i)%x(3) > node%bbox(2, 3)) cycle
-      num_contained_point = num_contained_point + 1
+      num_contained_point = num_contained_point + 1 !adds 1 to every point that is contained in our octree.
     end do
     allocate(contained_points(num_contained_point))
     j = 1
