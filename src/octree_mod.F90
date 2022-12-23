@@ -33,7 +33,7 @@ module octree_mod
     integer, allocatable :: point_ids(:) ! id for the point we are working with
     type(node_type), pointer :: parent  ! Pointer for parent node
     type(node_type), pointer :: children(:) ! points to the 8 children after being created
-  end type node_type
+  end type node_type  ! Change to add morton code possibly to find the cell in one big array.
 
   type tree_type
     type(point_type), pointer :: points(:)  ! A pointer that points to the points within that cube in the octree
@@ -105,7 +105,7 @@ contains
     end if
 
     ! Copy contained points into a new array.
-    num_contained_point = 0 ! sets a dummy variable to 0 for number of points in our octree
+    num_contained_point = 0 ! sets a dummy variable to 0 for number of points in our nodes
     do i = 1, size(points)
       if (points(i)%x(1) < node%bbox(1, 1) .or. points(i)%x(1) > node%bbox(2, 1) .or. & ! checks again? 
           points(i)%x(2) < node%bbox(1, 2) .or. points(i)%x(2) > node%bbox(2, 2) .or. &
