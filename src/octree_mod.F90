@@ -31,8 +31,8 @@ module octree_mod
     real(8) bbox(2, 3) ! Same as before 2 coordinates of box in form (x,y,z)
     integer num_point ! used to determine the number of points (inside a box? Not quite sure)
     integer, allocatable :: point_ids(:) ! id for the point we are working with
-    type(node_type), pointer :: parent  ! Pointer for parent node
-    type(node_type), pointer :: children(:) ! points to the 8 children after being created
+    type(node_type), pointer :: parent  ! Pointer for parent node each parent has a depth, 2 coordinates points, counter for number of points, and ids for each of those points.
+    type(node_type), pointer :: children(:) ! points to the 8 children after being created each of these have a depth, 2 coordinates, number of points and ids in the array
   end type node_type  ! Change to add morton code possibly to find the cell in one big array.
 
   type tree_type
@@ -141,20 +141,20 @@ contains
 
     type(node_type), intent(inout), target, optional :: node_
 
-    type(node_type), pointer :: node
+    type(node_type), pointer :: node  ! creates a new node type thats a pointer 
 
-    if (present(node_)) then
+    if (present(node_)) then  ! If we have a node argument then we set the new empty node pointer to point to the argument
       node => node_
     else
-      node => tree%root_node
+      node => tree%root_node  ! If we do not have a node_ argument (i.e. we have yet to refine the tree we point the node pointer towards the tree roots.
     end if
 
   end subroutine octree_update
 
   recursive subroutine octree_search(x, distance, num_ngb_point, ngb_ids, node_)
 
-    real(8), intent(in) :: x(3)
-    real(8), intent(in) :: distance
+    real(8), intent(in) :: x(3) ! coordinate argument 
+    real(8), intent(in) :: distance ! some epsilon distance that is used to determine position of point x
     integer, intent(inout) :: num_ngb_point
     integer, intent(inout) :: ngb_ids(:)
     type(node_type), intent(in), target, optional :: node_
@@ -248,12 +248,12 @@ contains
 
     integer i
 
-    if (associated(node%children)) then
+    if (associated(node%children)) then ! checks if children pointer in node type has a target, if yes then it does the loop below
       do i = 1, 8
-        call clean_node(node%children(i))
-        deallocate(node%children(i)%point_ids)
+        call clean_node(node%children(i)) ! calls recursive subroutine for children node on each i (for each child cell)
+        deallocate(node%children(i)%point_ids) ! deallocates the point ids for the children cells
       end do
-      deallocate(node%children)
+      deallocate(node%children) ! deallocates the children node pointer
     end if
 
   end subroutine clean_node
