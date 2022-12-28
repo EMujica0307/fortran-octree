@@ -12,7 +12,7 @@ module octree_mod
   public octree_search
 
   type config_type
-    integer max_num_point ! Maximum point number contained in leaf node.
+    integer max_num_point ! minimum number of points we want to be contained in leaf node.
     integer max_depth     ! Maximum level of branch and leaf nodes
     real(8) bbox(2, 3)    ! The 2 points in a box one being the anchor point bottom left then 2nd being its adjacent corner
   end type config_type
@@ -107,28 +107,28 @@ contains
     ! Copy contained points into a new array.
     num_contained_point = 0 ! sets a dummy variable to 0 for number of points in our nodes
     do i = 1, size(points)
-      if (points(i)%x(1) < node%bbox(1, 1) .or. points(i)%x(1) > node%bbox(2, 1) .or. & ! checks again? 
+      if (points(i)%x(1) < node%bbox(1, 1) .or. points(i)%x(1) > node%bbox(2, 1) .or. & ! checks again for the number of points within the cell 
           points(i)%x(2) < node%bbox(1, 2) .or. points(i)%x(2) > node%bbox(2, 2) .or. &
           points(i)%x(3) < node%bbox(1, 3) .or. points(i)%x(3) > node%bbox(2, 3)) cycle
-      num_contained_point = num_contained_point + 1 !adds 1 to every point that is contained in our octree.
+      num_contained_point = num_contained_point + 1 !adds 1 to every point that is contained in our cell.
     end do
     allocate(contained_points(num_contained_point))
     j = 1
     do i = 1, size(points)
-      if (points(i)%x(1) < node%bbox(1, 1) .or. points(i)%x(1) > node%bbox(2, 1) .or. &
-          points(i)%x(2) < node%bbox(1, 2) .or. points(i)%x(2) > node%bbox(2, 2) .or. &
+      if (points(i)%x(1) < node%bbox(1, 1) .or. points(i)%x(1) > node%bbox(2, 1) .or. & !3rd check where in this loop it assigns the contained points to an array with their ids
+          points(i)%x(2) < node%bbox(1, 2) .or. points(i)%x(2) > node%bbox(2, 2) .or. & ! also stores the points coordinates so we can see which cell they lie in.
           points(i)%x(3) < node%bbox(1, 3) .or. points(i)%x(3) > node%bbox(2, 3)) cycle
       contained_points(j)%id = points(i)%id
       contained_points(j)%x = points(i)%x
       j = j + 1
     end do
 
-    if (num_contained_point == 0) return
+    if (num_contained_point == 0) return ! on more refinements once we have no contained points in our cells it ends the loop
 
     ! Subdivide node and run into the child nodes.
-    call subdivide_node(node)
+    call subdivide_node(node) ! See Subroutine for details, essentially refines to 8 children cells
     do i = 1, 8
-      call octree_build(contained_points, node%children(i))
+      call octree_build(contained_points, node%children(i)) ! builds our octree again now with more refined cells 
     end do
 
     ! if (node%depth == 1) then
@@ -205,37 +205,37 @@ contains
 
     type(node_type), intent(inout) :: node
 
-    node%num_point = 0
-    if (.not. allocated(node%point_ids)) allocate(node%point_ids(config%max_num_point))
-    nullify(node%parent)
-    if (size(node%children) == 8) deallocate(node%children)
-    nullify(node%children)
+    node%num_point = 0  ! sets number of points in node to 0
+    if (.not. allocated(node%point_ids)) allocate(node%point_ids(config%max_num_point)) ! Checks if the node point ids is allocated, if it isnt it allocates it with the minimum number of points in our cell we wish to have
+    nullify(node%parent)  ! takes away pointer of node to the parents
+    if (size(node%children) == 8) deallocate(node%children) ! Checks if we already have children cells, if true we deallocate the node pointer for the children
+    nullify(node%children)  ! takes away pointer of node for children
 
   end subroutine reset_node
 
   subroutine subdivide_node(node)
 
-    type(node_type), intent(inout), target :: node
+    type(node_type), intent(inout), target :: node ! this argument is not optional and subroutine is called once we have refined our octree atleast once.
 
-    integer i, j, k, l
+    integer i, j, k, l  ! creates 4 interger so we can run through all children cells and to check each dimension of the cell that we are on.
     real(8) bbox(2, 3)
 
-    allocate(node%children(8))
-    l = 1
-    do k = 1, 2
-      do j = 1, 2
-        do i = 1, 2
-          call reset_node(node%children(l))
-          node%children(l)%depth = node%depth + 1
-          node%children(l)%parent => node
-          node%children(l)%bbox(1, 1) = node%bbox(1, 1) + (i - 1) * (node%bbox(2, 1) - node%bbox(1, 1)) * 0.5d0
-          node%children(l)%bbox(2, 1) = node%bbox(2, 1) - (2 - i) * (node%bbox(2, 1) - node%bbox(1, 1)) * 0.5d0
-          node%children(l)%bbox(1, 2) = node%bbox(1, 2) + (j - 1) * (node%bbox(2, 2) - node%bbox(1, 2)) * 0.5d0
-          node%children(l)%bbox(2, 2) = node%bbox(2, 2) - (2 - j) * (node%bbox(2, 2) - node%bbox(1, 2)) * 0.5d0
-          node%children(l)%bbox(1, 3) = node%bbox(1, 3) + (k - 1) * (node%bbox(2, 3) - node%bbox(1, 3)) * 0.5d0
+    allocate(node%children(8)) ! fills the children pointer with empty array.
+    l = 1 ! First Child cell, and continues until all cells are approached
+    do k = 1, 2 ! z dimension
+      do j = 1, 2 ! y dimension
+        do i = 1, 2 ! x dimension
+          call reset_node(node%children(l)) ! runs subroutine for reset_node directly above (essentially resets pointers and deallocates children nodes
+          node%children(l)%depth = node%depth + 1 ! gives the depth for children l cell to be next level of depth
+          node%children(l)%parent => node ! re assigns parent pointer with new children cell towards the node argument we input.  
+          node%children(l)%bbox(1, 1) = node%bbox(1, 1) + (i - 1) * (node%bbox(2, 1) - node%bbox(1, 1)) * 0.5d0 ! The following lines divide each dimension in half so that we add 
+          node%children(l)%bbox(2, 1) = node%bbox(2, 1) - (2 - i) * (node%bbox(2, 1) - node%bbox(1, 1)) * 0.5d0 ! a total of 8 cells each of them having their own respective pointers
+          node%children(l)%bbox(1, 2) = node%bbox(1, 2) + (j - 1) * (node%bbox(2, 2) - node%bbox(1, 2)) * 0.5d0 ! along with become new "parent" cells if further refined
+          node%children(l)%bbox(2, 2) = node%bbox(2, 2) - (2 - j) * (node%bbox(2, 2) - node%bbox(1, 2)) * 0.5d0 ! it gives new coordinates for each anchor point and diagonal point
+          node%children(l)%bbox(1, 3) = node%bbox(1, 3) + (k - 1) * (node%bbox(2, 3) - node%bbox(1, 3)) * 0.5d0 ! in order to create our new refined cells.
           node%children(l)%bbox(2, 3) = node%bbox(2, 3) - (2 - k) * (node%bbox(2, 3) - node%bbox(1, 3)) * 0.5d0
-          node%children(l)%parent => node
-          l = l + 1
+          node%children(l)%parent => node ! same? not sure why we need it twice.
+          l = l + 1 ! increases child cell number until we hit 8
         end do
       end do
     end do
