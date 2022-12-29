@@ -155,8 +155,8 @@ contains
 
     real(8), intent(in) :: x(3) ! coordinate argument 
     real(8), intent(in) :: distance ! some epsilon distance that is used to determine position of point x
-    integer, intent(inout) :: num_ngb_point
-    integer, intent(inout) :: ngb_ids(:)
+    integer, intent(inout) :: num_ngb_point ! Not quite sure about this one, possible points in our cell?
+    integer, intent(inout) :: ngb_ids(:) ! Not sure either
     type(node_type), intent(in), target, optional :: node_
 
     type(node_type), pointer :: node
@@ -192,6 +192,7 @@ contains
           if (num_ngb_point <= size(ngb_ids)) then
             ngb_ids(num_ngb_point) = node%point_ids(i)
           else
+          
             write(6, "('[Error]: octree: The ngb_ids array size is not enough!')")
             stop 1
           end if
