@@ -44,8 +44,22 @@ module octree_mod
   type(tree_type) tree     ! Type of configuration to set this tree point and node types for new Children or branches
 
 contains
-
-  subroutine octree_init(max_num_point, max_depth, bbox)  ! Subroutine so that we create the first octree box?
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!                                                                                                                                               !
+! Octree_init subroutine starts out the initial cell (0 refinement octree).                                                                     !
+! Takes optional arguments max_num_point, max_depth, and bbox                                                                                   !
+! max_num_point is the maximum number of points we wish each cell to have before we stop refining the cells.                                    !
+! max_depth is the maximum cell refinements we wish to have if max_num_points is not achieved.                                                  !
+! bbox is the boundary box of the cell we are in.                                                                                               !
+! This subroutine configures the minumum number of points each cell will have, if no argument is given then it will default to 3                !
+! Also will configure the max number of refinements, if no argument is given then it will default to 10                                         !
+! Will also create our most coarse cell if no argument is given it default to a box from (0,1) for all tree dimensions.                         !
+! Also will allocate tree root_node if it has nothing associated with it yet.                                                                   !
+! Calls reset_node subroutine (see subroutine for details) then finally sets the depth to 1 since it is our first cell.                         !
+! Also sets the first root_node boundary box to be the most coarse cell.                                                                        !
+!                                                                                                                                               !
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine octree_init(max_num_point, max_depth, bbox)  ! Subroutine so that we create the first octree box
 
     integer, intent(in), optional :: max_num_point 
     integer, intent(in), optional :: max_depth
@@ -61,14 +75,33 @@ contains
     tree%root_node%bbox = config%bbox ! Sets the first node with the boundary box value to determine size of box.
 
   end subroutine octree_init
-
+  
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !                                                                                                                                               !
+  ! octree_final subroutine when ran cleans the tree root nodes by calling the clean_node subroutine (see subroutine for details)                 !
+  ! once the clean_node subroutine is done we deallocate the tree root_node thus our refinement is done and have obtain the final octree          !
+  !                                                                                                                                               !
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine octree_final()
 
     call clean_node(tree%root_node) ! See clean_node for details
     deallocate(tree%root_node) ! deallocates tree root node such that we can tell our refinement is over.
 
   end subroutine octree_final
-
+  
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !                                                                                                                                               !
+  ! Octree_build subroutine is where our octree is built and will also call subdivide_node subroutine which is explained more in detail at the    !
+  ! subroutine definement below.                                                                                                                  !
+  ! The build subroutine is recursive and can call itself over in the subroutine itself.                                                          !
+  ! This subroutine runs through 3 loops in order to obtain all the points that are inside of our octree and more refined cells as we refine it   !
+  ! The first loop is intended to check our array of points and check if these points fall within our cell.                                       !
+  ! The second loop double checks those points and copies those points within the cell into an array.                                             !
+  ! The final loop takes that array of points that were obtained and gives them an id to the corresponding points                                 !
+  !
+  !                                                                                                                                               !
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                                                                                                                                                 
   recursive subroutine octree_build(points, node_) ! Recursive subroutine that builds the octree for each refinement
 
     type(point_type), intent(in), target :: points(:) ! This argument is needed when calling the octree_build these are the points in the octree mesh
@@ -82,7 +115,7 @@ contains
     if (present(node_)) then  ! Sets the empty node pointer to point to the argument one in subroutine
       node => node_
     else
-      tree%points => points !if the optional node_ is not in the argument, we point the tree points to our argument points  
+      tree%points => points ! if the optional node_ is not in the argument, we point the tree points to our argument points  
       node => tree%root_node  ! then the node pointer points to our tree root nodes. 
     end if
 
@@ -155,22 +188,23 @@ contains
 
     real(8), intent(in) :: x(3) ! coordinate argument 
     real(8), intent(in) :: distance ! some epsilon distance that is used to determine position of point x
-    integer, intent(inout) :: num_ngb_point ! Not quite sure about this one, possible points in our cell?
-    integer, intent(inout) :: ngb_ids(:) ! Not sure either
-    type(node_type), intent(in), target, optional :: node_
+    integer, intent(inout) :: num_ngb_point ! (Maybe) Number of points in our octree that were contained after the build
+    integer, intent(inout) :: ngb_ids(:) ! The identifiers for these points that were contained
+    type(node_type), intent(in), target, optional :: node_  ! nodes of refined tree if we are searching within a refined cell.
 
-    type(node_type), pointer :: node
-    real(8) d2, dx(3)
-    integer i
+    type(node_type), pointer :: node  ! Pointer that will point towards node_ if the argument is there
+    real(8) d2, dx(3) ! two real numbers of double Precision where dx is a coordinate.
+    integer i ! dummy integer for a loop
 
-    if (present(node_)) then
+    if (present(node_)) then  ! this if justs points the node_type we made if the node_ argument is in the function.
       node => node_
     else
-      node => tree%root_node
+      node => tree%root_node  ! if the node_ argument is left empty we point to the tree roots
     end if
 
-    if (associated(node%children)) then
+    if (associated(node%children)) then ! if the children node type is pointing to something already it runs the loop.
       ! We are at branch node.
+      ! This loop determines if our point x is within the children cell and not on our boundary; if so, restarts the recursive subroutine to determine if its within another children cell
       do i = 1, 8
         if ((x(1) + distance) > node%children(i)%bbox(1,1) .and. &
             (x(1) - distance) < node%children(i)%bbox(2,1) .and. &
@@ -243,6 +277,14 @@ contains
 
   end subroutine subdivide_node
 
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !                                                                                                                                               !
+  ! clean_node subroutine takes in argument node, starts by checking if the node argument has any children cells associated with it               !
+  ! If the children pointer is associated then it goes on to deallocate those point ids.                                                          !
+  ! Once that is done it will deallocate the children pointer that was allocated with the 8 children.                                             !
+  ! If the children node is not pointing to anything then it will just skip deallocating the 8 children cell and deallocate the pointer.          !
+  !                                                                                                                                               !
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   recursive subroutine clean_node(node)
 
     type(node_type), intent(inout) :: node
